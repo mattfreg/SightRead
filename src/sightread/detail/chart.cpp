@@ -75,82 +75,142 @@ std::vector<std::string_view> split_by_space(std::string_view input)
     return substrings;
 }
 
-SightRead::Detail::NoteEvent
-convert_line_to_note(int position,
-                     const std::vector<std::string_view>& split_line)
+SightRead::Detail::NoteEvent convert_line_to_note(std::string_view line)
 {
-    constexpr int MAX_NORMAL_EVENT_SIZE = 5;
+    using boost::spirit::x3::_attr;
+    using boost::spirit::x3::int_;
+    using boost::spirit::x3::phrase_parse;
+    using boost::spirit::x3::ascii::space;
 
-    if (split_line.size() < MAX_NORMAL_EVENT_SIZE) {
-        throw SightRead::ParseError("Line incomplete");
-    }
-    const auto fret = string_view_to_int(split_line[3]);
-    const auto length = string_view_to_int(split_line[4]);
-    if (!fret.has_value() || !length.has_value()) {
+    SightRead::Detail::NoteEvent event;
+
+    auto set_pos = [&](auto& ctx) { event.position = _attr(ctx); };
+    auto set_fret = [&](auto& ctx) { event.fret = _attr(ctx); };
+    auto set_length = [&](auto& ctx) { event.length = _attr(ctx); };
+
+    auto first = line.cbegin();
+    auto last = line.cend();
+
+    bool r = phrase_parse(
+        first, last,
+        (int_[set_pos] >> '=' >> 'N' >> int_[set_fret] >> int_[set_length]),
+        space);
+
+    if (!r || first != last) {
         throw SightRead::ParseError("Bad note event");
     }
-    return {position, *fret, *length};
+
+    return event;
 }
 
-SightRead::Detail::SpecialEvent
-convert_line_to_special(int position,
-                        const std::vector<std::string_view>& split_line)
+SightRead::Detail::SpecialEvent convert_line_to_special(std::string_view line)
 {
-    constexpr int MAX_NORMAL_EVENT_SIZE = 5;
+    using boost::spirit::x3::_attr;
+    using boost::spirit::x3::int_;
+    using boost::spirit::x3::phrase_parse;
+    using boost::spirit::x3::ascii::space;
 
-    if (split_line.size() < MAX_NORMAL_EVENT_SIZE) {
-        throw SightRead::ParseError("Line incomplete");
+    SightRead::Detail::SpecialEvent event;
+
+    auto set_pos = [&](auto& ctx) { event.position = _attr(ctx); };
+    auto set_key = [&](auto& ctx) { event.key = _attr(ctx); };
+    auto set_length = [&](auto& ctx) { event.length = _attr(ctx); };
+
+    auto first = line.cbegin();
+    auto last = line.cend();
+
+    bool r = phrase_parse(
+        first, last,
+        (int_[set_pos] >> '=' >> 'S' >> int_[set_key] >> int_[set_length]),
+        space);
+
+    if (!r || first != last) {
+        throw SightRead::ParseError("Bad special event");
     }
-    const auto sp_key = string_view_to_int(split_line[3]);
-    const auto length = string_view_to_int(split_line[4]);
-    if (!sp_key.has_value() || !length.has_value()) {
-        throw SightRead::ParseError("Bad SP event");
-    }
-    return {position, *sp_key, *length};
+
+    return event;
 }
 
-SightRead::Detail::BpmEvent
-convert_line_to_bpm(int position,
-                    const std::vector<std::string_view>& split_line)
+SightRead::Detail::BpmEvent convert_line_to_bpm(std::string_view line)
 {
-    if (split_line.size() < 4) {
-        throw SightRead::ParseError("Line incomplete");
-    }
-    const auto bpm = string_view_to_int(split_line[3]);
-    if (!bpm.has_value()) {
+    using boost::spirit::x3::_attr;
+    using boost::spirit::x3::int_;
+    using boost::spirit::x3::phrase_parse;
+    using boost::spirit::x3::ascii::space;
+
+    SightRead::Detail::BpmEvent event;
+
+    auto set_pos = [&](auto& ctx) { event.position = _attr(ctx); };
+    auto set_bpm = [&](auto& ctx) { event.bpm = _attr(ctx); };
+
+    auto first = line.cbegin();
+    auto last = line.cend();
+
+    bool r = phrase_parse(
+        first, last, (int_[set_pos] >> '=' >> 'B' >> int_[set_bpm]), space);
+
+    if (!r || first != last) {
         throw SightRead::ParseError("Bad BPM event");
     }
-    return {position, *bpm};
+
+    return event;
 }
 
-SightRead::Detail::TimeSigEvent
-convert_line_to_timesig(int position,
-                        const std::vector<std::string_view>& split_line)
+SightRead::Detail::TimeSigEvent convert_line_to_timesig(std::string_view line)
 {
-    constexpr int MAX_NORMAL_EVENT_SIZE = 5;
+    using boost::spirit::x3::_attr;
+    using boost::spirit::x3::int_;
+    using boost::spirit::x3::phrase_parse;
+    using boost::spirit::x3::ascii::space;
 
-    if (split_line.size() < 4) {
-        throw SightRead::ParseError("Line incomplete");
-    }
-    const auto numer = string_view_to_int(split_line[3]);
-    std::optional<int> denom = 2;
-    if (split_line.size() >= MAX_NORMAL_EVENT_SIZE) {
-        denom = string_view_to_int(split_line[4]);
-    }
-    if (!numer.has_value() || !denom.has_value()) {
+    SightRead::Detail::TimeSigEvent event;
+    event.denominator = 2;
+
+    auto set_pos = [&](auto& ctx) { event.position = _attr(ctx); };
+    auto set_numer = [&](auto& ctx) { event.numerator = _attr(ctx); };
+    auto set_denom = [&](auto& ctx) { event.denominator = _attr(ctx); };
+
+    auto first = line.cbegin();
+    auto last = line.cend();
+
+    bool r = phrase_parse(
+        first, last,
+        (int_[set_pos] >> '=' >> "TS" >> int_[set_numer] >> -int_[set_denom]),
+        space);
+
+    if (!r || first != last) {
         throw SightRead::ParseError("Bad TS event");
     }
-    return {position, *numer, *denom};
+
+    return event;
 }
 
-SightRead::Detail::Event
-convert_line_to_event(int position,
-                      const std::vector<std::string_view>& split_line)
+SightRead::Detail::Event convert_line_to_event(std::string_view line)
 {
-    if (split_line.size() < 4) {
-        throw SightRead::ParseError("Line incomplete");
+    using boost::spirit::x3::_attr;
+    using boost::spirit::x3::char_;
+    using boost::spirit::x3::int_;
+    using boost::spirit::x3::lexeme;
+    using boost::spirit::x3::phrase_parse;
+    using boost::spirit::x3::ascii::space;
+
+    SightRead::Detail::Event event;
+
+    auto set_pos = [&](auto& ctx) { event.position = _attr(ctx); };
+    auto set_data = [&](auto& ctx) { event.data = _attr(ctx); };
+
+    auto first = line.cbegin();
+    auto last = line.cend();
+
+    bool r = phrase_parse(
+        first, last,
+        (int_[set_pos] >> '=' >> 'E' >> lexeme[*~char_(' ')][set_data]), space);
+
+    if (!r || first != last) {
+        throw SightRead::ParseError("Bad event");
     }
-    return {position, std::string {split_line[3]}};
+
+    return event;
 }
 
 SightRead::Detail::ChartSection read_section(std::string_view& input)
@@ -174,22 +234,17 @@ SightRead::Detail::ChartSection read_section(std::string_view& input)
         const auto key = separated_line[0];
         const auto key_val = string_view_to_int(key);
         if (key_val.has_value()) {
-            const auto pos = *key_val;
             if (separated_line[2] == "N") {
-                section.note_events.push_back(
-                    convert_line_to_note(pos, separated_line));
+                section.note_events.push_back(convert_line_to_note(next_line));
             } else if (separated_line[2] == "S") {
                 section.special_events.push_back(
-                    convert_line_to_special(pos, separated_line));
+                    convert_line_to_special(next_line));
             } else if (separated_line[2] == "B") {
-                section.bpm_events.push_back(
-                    convert_line_to_bpm(pos, separated_line));
+                section.bpm_events.push_back(convert_line_to_bpm(next_line));
             } else if (separated_line[2] == "TS") {
-                section.ts_events.push_back(
-                    convert_line_to_timesig(pos, separated_line));
+                section.ts_events.push_back(convert_line_to_timesig(next_line));
             } else if (separated_line[2] == "E") {
-                section.events.push_back(
-                    convert_line_to_event(pos, separated_line));
+                section.events.push_back(convert_line_to_event(next_line));
             }
         } else {
             std::string value {separated_line[2]};
