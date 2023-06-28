@@ -159,8 +159,8 @@ SightRead::Detail::ChartSection read_section(std::string_view& input)
             auto add_event
                 = [&](auto& ctx) { section.events.push_back(_attr(ctx)); };
 
-            auto first = next_line.cbegin();
-            auto last = next_line.cend();
+            const auto* first = next_line.cbegin();
+            const auto* last = next_line.cend();
 
             phrase_parse(first, last,
                          note_event[add_note] | special_event[add_special]
