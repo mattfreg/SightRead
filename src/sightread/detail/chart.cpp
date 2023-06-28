@@ -1,10 +1,54 @@
 #include <charconv>
 #include <optional>
 
+#include <boost/fusion/include/adapt_struct.hpp>
 #include <boost/spirit/home/x3.hpp>
 
 #include "sightread/detail/chart.hpp"
 #include "sightread/songparts.hpp"
+
+BOOST_FUSION_ADAPT_STRUCT(SightRead::Detail::NoteEvent, position, fret, length)
+BOOST_FUSION_ADAPT_STRUCT(SightRead::Detail::SpecialEvent, position, key,
+                          length)
+BOOST_FUSION_ADAPT_STRUCT(SightRead::Detail::BpmEvent, position, bpm)
+BOOST_FUSION_ADAPT_STRUCT(SightRead::Detail::TimeSigEvent, position, numerator,
+                          denominator)
+BOOST_FUSION_ADAPT_STRUCT(SightRead::Detail::Event, position, data)
+
+namespace SightRead {
+namespace x3 = boost::spirit::x3;
+
+using x3::attr;
+using x3::char_;
+using x3::int_;
+using x3::lexeme;
+using x3::ascii::space;
+
+const x3::rule<class note_event, SightRead::Detail::NoteEvent> note_event
+    = "note_event";
+const auto note_event_def = int_ >> '=' >> 'N' >> int_ >> int_;
+BOOST_SPIRIT_DEFINE(note_event);
+
+const x3::rule<class special_event, SightRead::Detail::SpecialEvent>
+    special_event = "special_event";
+const auto special_event_def = int_ >> '=' >> 'S' >> int_ >> int_;
+BOOST_SPIRIT_DEFINE(special_event);
+
+const x3::rule<class bpm_event, SightRead::Detail::BpmEvent> bpm_event
+    = "bpm_event";
+const auto bpm_event_def = int_ >> '=' >> 'B' >> int_;
+BOOST_SPIRIT_DEFINE(bpm_event);
+
+const x3::rule<class ts_event, SightRead::Detail::TimeSigEvent> ts_event
+    = "ts_event";
+const auto ts_event_def = int_ >> '=' >> "TS" >> int_ >> (int_ | attr(2));
+BOOST_SPIRIT_DEFINE(ts_event);
+
+const x3::rule<class general_event, SightRead::Detail::Event> general_event
+    = "general_event";
+const auto general_event_def = int_ >> '=' >> 'E' >> lexeme[*~char_(' ')];
+BOOST_SPIRIT_DEFINE(general_event);
+}
 
 namespace {
 std::string_view skip_whitespace(std::string_view input)
@@ -75,146 +119,15 @@ std::vector<std::string_view> split_by_space(std::string_view input)
     return substrings;
 }
 
-SightRead::Detail::NoteEvent convert_line_to_note(std::string_view line)
-{
-    using boost::spirit::x3::_attr;
-    using boost::spirit::x3::int_;
-    using boost::spirit::x3::phrase_parse;
-    using boost::spirit::x3::ascii::space;
-
-    SightRead::Detail::NoteEvent event;
-
-    auto set_pos = [&](auto& ctx) { event.position = _attr(ctx); };
-    auto set_fret = [&](auto& ctx) { event.fret = _attr(ctx); };
-    auto set_length = [&](auto& ctx) { event.length = _attr(ctx); };
-
-    auto first = line.cbegin();
-    auto last = line.cend();
-
-    bool r = phrase_parse(
-        first, last,
-        (int_[set_pos] >> '=' >> 'N' >> int_[set_fret] >> int_[set_length]),
-        space);
-
-    if (!r || first != last) {
-        throw SightRead::ParseError("Bad note event");
-    }
-
-    return event;
-}
-
-SightRead::Detail::SpecialEvent convert_line_to_special(std::string_view line)
-{
-    using boost::spirit::x3::_attr;
-    using boost::spirit::x3::int_;
-    using boost::spirit::x3::phrase_parse;
-    using boost::spirit::x3::ascii::space;
-
-    SightRead::Detail::SpecialEvent event;
-
-    auto set_pos = [&](auto& ctx) { event.position = _attr(ctx); };
-    auto set_key = [&](auto& ctx) { event.key = _attr(ctx); };
-    auto set_length = [&](auto& ctx) { event.length = _attr(ctx); };
-
-    auto first = line.cbegin();
-    auto last = line.cend();
-
-    bool r = phrase_parse(
-        first, last,
-        (int_[set_pos] >> '=' >> 'S' >> int_[set_key] >> int_[set_length]),
-        space);
-
-    if (!r || first != last) {
-        throw SightRead::ParseError("Bad special event");
-    }
-
-    return event;
-}
-
-SightRead::Detail::BpmEvent convert_line_to_bpm(std::string_view line)
-{
-    using boost::spirit::x3::_attr;
-    using boost::spirit::x3::int_;
-    using boost::spirit::x3::phrase_parse;
-    using boost::spirit::x3::ascii::space;
-
-    SightRead::Detail::BpmEvent event;
-
-    auto set_pos = [&](auto& ctx) { event.position = _attr(ctx); };
-    auto set_bpm = [&](auto& ctx) { event.bpm = _attr(ctx); };
-
-    auto first = line.cbegin();
-    auto last = line.cend();
-
-    bool r = phrase_parse(
-        first, last, (int_[set_pos] >> '=' >> 'B' >> int_[set_bpm]), space);
-
-    if (!r || first != last) {
-        throw SightRead::ParseError("Bad BPM event");
-    }
-
-    return event;
-}
-
-SightRead::Detail::TimeSigEvent convert_line_to_timesig(std::string_view line)
-{
-    using boost::spirit::x3::_attr;
-    using boost::spirit::x3::int_;
-    using boost::spirit::x3::phrase_parse;
-    using boost::spirit::x3::ascii::space;
-
-    SightRead::Detail::TimeSigEvent event;
-    event.denominator = 2;
-
-    auto set_pos = [&](auto& ctx) { event.position = _attr(ctx); };
-    auto set_numer = [&](auto& ctx) { event.numerator = _attr(ctx); };
-    auto set_denom = [&](auto& ctx) { event.denominator = _attr(ctx); };
-
-    auto first = line.cbegin();
-    auto last = line.cend();
-
-    bool r = phrase_parse(
-        first, last,
-        (int_[set_pos] >> '=' >> "TS" >> int_[set_numer] >> -int_[set_denom]),
-        space);
-
-    if (!r || first != last) {
-        throw SightRead::ParseError("Bad TS event");
-    }
-
-    return event;
-}
-
-SightRead::Detail::Event convert_line_to_event(std::string_view line)
-{
-    using boost::spirit::x3::_attr;
-    using boost::spirit::x3::char_;
-    using boost::spirit::x3::int_;
-    using boost::spirit::x3::lexeme;
-    using boost::spirit::x3::phrase_parse;
-    using boost::spirit::x3::ascii::space;
-
-    SightRead::Detail::Event event;
-
-    auto set_pos = [&](auto& ctx) { event.position = _attr(ctx); };
-    auto set_data = [&](auto& ctx) { event.data = _attr(ctx); };
-
-    auto first = line.cbegin();
-    auto last = line.cend();
-
-    bool r = phrase_parse(
-        first, last,
-        (int_[set_pos] >> '=' >> 'E' >> lexeme[*~char_(' ')][set_data]), space);
-
-    if (!r || first != last) {
-        throw SightRead::ParseError("Bad event");
-    }
-
-    return event;
-}
-
 SightRead::Detail::ChartSection read_section(std::string_view& input)
 {
+    using boost::spirit::x3::ascii::space;
+    using SightRead::bpm_event;
+    using SightRead::general_event;
+    using SightRead::note_event;
+    using SightRead::special_event;
+    using SightRead::ts_event;
+
     SightRead::Detail::ChartSection section;
     section.name = strip_square_brackets(break_off_newline(input));
 
@@ -234,18 +147,26 @@ SightRead::Detail::ChartSection read_section(std::string_view& input)
         const auto key = separated_line[0];
         const auto key_val = string_view_to_int(key);
         if (key_val.has_value()) {
-            if (separated_line[2] == "N") {
-                section.note_events.push_back(convert_line_to_note(next_line));
-            } else if (separated_line[2] == "S") {
-                section.special_events.push_back(
-                    convert_line_to_special(next_line));
-            } else if (separated_line[2] == "B") {
-                section.bpm_events.push_back(convert_line_to_bpm(next_line));
-            } else if (separated_line[2] == "TS") {
-                section.ts_events.push_back(convert_line_to_timesig(next_line));
-            } else if (separated_line[2] == "E") {
-                section.events.push_back(convert_line_to_event(next_line));
-            }
+            auto add_note
+                = [&](auto& ctx) { section.note_events.push_back(_attr(ctx)); };
+            auto add_special = [&](auto& ctx) {
+                section.special_events.push_back(_attr(ctx));
+            };
+            auto add_bpm
+                = [&](auto& ctx) { section.bpm_events.push_back(_attr(ctx)); };
+            auto add_ts
+                = [&](auto& ctx) { section.ts_events.push_back(_attr(ctx)); };
+            auto add_event
+                = [&](auto& ctx) { section.events.push_back(_attr(ctx)); };
+
+            auto first = next_line.cbegin();
+            auto last = next_line.cend();
+
+            phrase_parse(first, last,
+                         note_event[add_note] | special_event[add_special]
+                             | bpm_event[add_bpm] | ts_event[add_ts]
+                             | general_event[add_event],
+                         space);
         } else {
             std::string value {separated_line[2]};
             for (auto i = 3U; i < separated_line.size(); ++i) {

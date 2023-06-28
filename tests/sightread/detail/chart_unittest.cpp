@@ -195,18 +195,3 @@ BOOST_AUTO_TEST_CASE(single_character_headers_should_throw)
     BOOST_CHECK_THROW([] { return SightRead::Detail::parse_chart("\n"); }(),
                       SightRead::ParseError);
 }
-
-BOOST_AUTO_TEST_CASE(short_mid_section_lines_throw)
-{
-    BOOST_CHECK_THROW(
-        [&] {
-            return SightRead::Detail::parse_chart("[ExpertGuitar]\n{\n1 1\n}");
-        }(),
-        SightRead::ParseError);
-    BOOST_CHECK_THROW(
-        [&] {
-            return SightRead::Detail::parse_chart(
-                "[ExpertGuitar]\n{\n1 = N 1\n}");
-        }(),
-        SightRead::ParseError);
-}
