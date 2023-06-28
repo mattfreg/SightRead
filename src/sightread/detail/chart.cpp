@@ -1,6 +1,8 @@
 #include <charconv>
 #include <optional>
 
+#include <boost/spirit/home/x3.hpp>
+
 #include "sightread/detail/chart.hpp"
 #include "sightread/songparts.hpp"
 

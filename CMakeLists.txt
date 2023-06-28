@@ -17,6 +17,8 @@ function(set_cpp_standard target)
         CXX_EXTENSIONS OFF)
 endfunction()
 
+find_package(Boost 1.77 REQUIRED OPTIONAL_COMPONENTS unit_test_framework)
+
 add_library(sightread
     src/sightread/chartparser.cpp
     src/sightread/midiparser.cpp
@@ -29,13 +31,15 @@ add_library(sightread
     src/sightread/detail/midiconverter.cpp
     src/sightread/detail/parserutil.cpp)
 
-target_include_directories(sightread PUBLIC include PRIVATE src)
+target_include_directories(sightread PUBLIC include PRIVATE src ${Boost_INCLUDE_DIRS})
 set_cpp_standard(sightread)
 
 option(SIGHTREAD_BUILD_TESTS "Build SightRead tests" OFF)
 
 if(SIGHTREAD_BUILD_TESTS)
-    find_package(Boost 1.77 REQUIRED COMPONENTS unit_test_framework)
+    if(NOT Boost_unit_test_framework_FOUND)
+        message(FATAL_ERROR "Tests need Boost::Test in order to be built")
+    endif()
 
     enable_testing()
     add_executable(
@@ -59,7 +63,7 @@ if(SIGHTREAD_BUILD_TESTS)
         src/sightread/detail/midiconverter.cpp
         src/sightread/detail/parserutil.cpp)
 
-    target_include_directories(sightread_tests PRIVATE include src tests/sightread)
+    target_include_directories(sightread_tests PRIVATE include src tests/sightread ${Boost_INCLUDE_DIRS})
     target_link_directories(sightread_tests PRIVATE ${Boost_LIBRARY_DIRS})
     target_link_libraries(sightread_tests PRIVATE Boost::unit_test_framework)
     add_test(NAME sightread_tests COMMAND sightread_tests)
