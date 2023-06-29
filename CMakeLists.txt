@@ -17,6 +17,10 @@ function(set_cpp_standard target)
         CXX_EXTENSIONS OFF)
 endfunction()
 
+include(FetchContent)
+FetchContent_Declare(lexy URL https://github.com/foonathan/lexy/releases/download/v2022.12.1/lexy-src.zip)
+FetchContent_MakeAvailable(lexy)
+
 add_library(sightread
     src/sightread/chartparser.cpp
     src/sightread/midiparser.cpp
@@ -30,6 +34,7 @@ add_library(sightread
     src/sightread/detail/parserutil.cpp)
 
 target_include_directories(sightread PUBLIC include PRIVATE src)
+target_link_libraries(sightread PRIVATE foonathan::lexy)
 set_cpp_standard(sightread)
 
 option(SIGHTREAD_BUILD_TESTS "Build SightRead tests" OFF)
