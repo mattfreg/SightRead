@@ -126,10 +126,8 @@ SightRead::Detail::ChartSection read_section(std::string_view& input)
         if (next_line == "}") {
             break;
         }
-        const auto first = next_line.cbegin();
-        const auto last = next_line.cend();
 
-        phrase_parse(first, last,
+        phrase_parse(next_line.cbegin(), next_line.cend(),
                      note_event[add_note] | special_event[add_special]
                          | bpm_event[add_bpm] | ts_event[add_ts]
                          | general_event[add_event] | kv_pair[add_kv_pair],
