@@ -1,6 +1,7 @@
 #include <charconv>
 #include <optional>
 
+#include <boost/fusion/container/vector.hpp>
 #include <boost/fusion/include/adapt_struct.hpp>
 #include <boost/spirit/home/x3.hpp>
 
@@ -48,6 +49,11 @@ const x3::rule<class general_event, SightRead::Detail::Event> general_event
     = "general_event";
 const auto general_event_def = int_ >> '=' >> 'E' >> lexeme[*~char_(' ')];
 BOOST_SPIRIT_DEFINE(general_event);
+
+const x3::rule<class kv_pair, boost::fusion::vector<std::string, std::string>>
+    kv_pair = "kv_pair";
+const auto kv_pair_def = lexeme[*~char_(' ')] >> '=' >> lexeme[*char_];
+BOOST_SPIRIT_DEFINE(kv_pair);
 }
 
 namespace {
@@ -124,12 +130,25 @@ SightRead::Detail::ChartSection read_section(std::string_view& input)
     using boost::spirit::x3::ascii::space;
     using SightRead::bpm_event;
     using SightRead::general_event;
+    using SightRead::kv_pair;
     using SightRead::note_event;
     using SightRead::special_event;
     using SightRead::ts_event;
 
     SightRead::Detail::ChartSection section;
     section.name = strip_square_brackets(break_off_newline(input));
+
+    auto add_note
+        = [&](auto& ctx) { section.note_events.push_back(_attr(ctx)); };
+    auto add_special
+        = [&](auto& ctx) { section.special_events.push_back(_attr(ctx)); };
+    auto add_bpm = [&](auto& ctx) { section.bpm_events.push_back(_attr(ctx)); };
+    auto add_ts = [&](auto& ctx) { section.ts_events.push_back(_attr(ctx)); };
+    auto add_event = [&](auto& ctx) { section.events.push_back(_attr(ctx)); };
+    auto add_kv_pair = [&](auto& ctx) {
+        const auto& pair = _attr(ctx);
+        section.key_value_pairs.insert_or_assign(at_c<0>(pair), at_c<1>(pair));
+    };
 
     if (break_off_newline(input) != "{") {
         throw SightRead::ParseError("Section does not open with {");
@@ -140,40 +159,14 @@ SightRead::Detail::ChartSection read_section(std::string_view& input)
         if (next_line == "}") {
             break;
         }
-        const auto separated_line = split_by_space(next_line);
-        if (separated_line.size() < 3) {
-            throw SightRead::ParseError("Line incomplete");
-        }
-        const auto key = separated_line[0];
-        const auto key_val = string_view_to_int(key);
-        if (key_val.has_value()) {
-            auto add_note
-                = [&](auto& ctx) { section.note_events.push_back(_attr(ctx)); };
-            auto add_special = [&](auto& ctx) {
-                section.special_events.push_back(_attr(ctx));
-            };
-            auto add_bpm
-                = [&](auto& ctx) { section.bpm_events.push_back(_attr(ctx)); };
-            auto add_ts
-                = [&](auto& ctx) { section.ts_events.push_back(_attr(ctx)); };
-            auto add_event
-                = [&](auto& ctx) { section.events.push_back(_attr(ctx)); };
+        const auto first = next_line.cbegin();
+        const auto last = next_line.cend();
 
-            const auto* first = next_line.cbegin();
-            const auto* last = next_line.cend();
-
-            phrase_parse(first, last,
-                         note_event[add_note] | special_event[add_special]
-                             | bpm_event[add_bpm] | ts_event[add_ts]
-                             | general_event[add_event],
-                         space);
-        } else {
-            std::string value {separated_line[2]};
-            for (auto i = 3U; i < separated_line.size(); ++i) {
-                value.append(separated_line[i]);
-            }
-            section.key_value_pairs[std::string(key)] = value;
-        }
+        phrase_parse(first, last,
+                     note_event[add_note] | special_event[add_special]
+                         | bpm_event[add_bpm] | ts_event[add_ts]
+                         | general_event[add_event] | kv_pair[add_kv_pair],
+                     space);
     }
 
     return section;
