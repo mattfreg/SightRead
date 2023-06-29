@@ -92,39 +92,6 @@ std::string_view strip_square_brackets(std::string_view input)
     return input.substr(1, input.size() - 2);
 }
 
-// Convert a string_view to an int. If there are any problems with the input,
-// this function returns std::nullopt.
-std::optional<int> string_view_to_int(std::string_view input)
-{
-    int result = 0;
-    const char* last = input.data() + input.size();
-    auto [p, ec] = std::from_chars(input.data(), last, result);
-    if ((ec != std::errc()) || (p != last)) {
-        return std::nullopt;
-    }
-    return result;
-}
-
-// Split input by space characters, similar to .Split(' ') in C#. Note that
-// the lifetime of the string_views in the output is the same as that of the
-// input.
-std::vector<std::string_view> split_by_space(std::string_view input)
-{
-    std::vector<std::string_view> substrings;
-
-    while (true) {
-        const auto space_location = input.find(' ');
-        if (space_location == std::string_view::npos) {
-            break;
-        }
-        substrings.push_back(input.substr(0, space_location));
-        input.remove_prefix(space_location + 1);
-    }
-
-    substrings.push_back(input);
-    return substrings;
-}
-
 SightRead::Detail::ChartSection read_section(std::string_view& input)
 {
     using boost::spirit::x3::ascii::space;
