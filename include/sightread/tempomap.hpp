@@ -10,8 +10,13 @@
 namespace SightRead {
 class ParseError : public std::runtime_error {
 public:
-    explicit ParseError(const char* what)
-        : std::runtime_error {what}
+    explicit ParseError(const char* what_arg)
+        : std::runtime_error {what_arg}
+    {
+    }
+
+    explicit ParseError(const std::string& what_arg)
+        : std::runtime_error {what_arg}
     {
     }
 };

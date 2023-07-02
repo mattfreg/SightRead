@@ -1,10 +1,28 @@
 #include <charconv>
 #include <optional>
 
+#include <lexy/action/parse.hpp>
+#include <lexy/dsl.hpp>
+#include <lexy/input/string_input.hpp>
+#include <lexy_ext/report_error.hpp>
+
 #include "sightread/detail/chart.hpp"
 #include "sightread/songparts.hpp"
 
 namespace {
+namespace grammar {
+    namespace dsl = lexy::dsl;
+
+    struct note_event {
+        static constexpr auto whitespace = dsl::ascii::blank;
+
+        static constexpr auto rule = dsl::integer<int> + dsl::lit_c<'='>
+            + dsl::lit_c<'N'> + dsl::times<2>(dsl::integer<int>) + dsl::eof;
+        static constexpr auto value
+            = lexy::construct<SightRead::Detail::NoteEvent>;
+    };
+}
+
 std::string_view skip_whitespace(std::string_view input)
 {
     const auto first_non_ws_location = input.find_first_not_of(" \f\n\r\t\v");
@@ -73,21 +91,19 @@ std::vector<std::string_view> split_by_space(std::string_view input)
     return substrings;
 }
 
-SightRead::Detail::NoteEvent
-convert_line_to_note(int position,
-                     const std::vector<std::string_view>& split_line)
+SightRead::Detail::NoteEvent convert_line_to_note(std::string_view line)
 {
-    constexpr int MAX_NORMAL_EVENT_SIZE = 5;
+    std::string error;
 
-    if (split_line.size() < MAX_NORMAL_EVENT_SIZE) {
-        throw SightRead::ParseError("Line incomplete");
+    const auto literal = lexy::string_input(line);
+    const auto result = lexy::parse<grammar::note_event>(
+        literal, lexy_ext::report_error.to(std::back_inserter(error)));
+
+    if (!result.has_value()) {
+        throw SightRead::ParseError(error);
     }
-    const auto fret = string_view_to_int(split_line[3]);
-    const auto length = string_view_to_int(split_line[4]);
-    if (!fret.has_value() || !length.has_value()) {
-        throw SightRead::ParseError("Bad note event");
-    }
-    return {position, *fret, *length};
+
+    return result.value();
 }
 
 SightRead::Detail::SpecialEvent
@@ -174,8 +190,7 @@ SightRead::Detail::ChartSection read_section(std::string_view& input)
         if (key_val.has_value()) {
             const auto pos = *key_val;
             if (separated_line[2] == "N") {
-                section.note_events.push_back(
-                    convert_line_to_note(pos, separated_line));
+                section.note_events.push_back(convert_line_to_note(next_line));
             } else if (separated_line[2] == "S") {
                 section.special_events.push_back(
                     convert_line_to_special(pos, separated_line));

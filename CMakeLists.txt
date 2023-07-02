@@ -66,7 +66,7 @@ if(SIGHTREAD_BUILD_TESTS)
 
     target_include_directories(sightread_tests PRIVATE include src tests/sightread)
     target_link_directories(sightread_tests PRIVATE ${Boost_LIBRARY_DIRS})
-    target_link_libraries(sightread_tests PRIVATE Boost::unit_test_framework)
+    target_link_libraries(sightread_tests PRIVATE Boost::unit_test_framework foonathan::lexy)
     add_test(NAME sightread_tests COMMAND sightread_tests)
     set_cpp_standard(sightread_tests)
     target_compile_options(

@@ -128,14 +128,6 @@ BOOST_AUTO_TEST_CASE(note_events_are_read)
                                   events.cend());
 }
 
-BOOST_AUTO_TEST_CASE(note_events_with_extra_spaces_throw)
-{
-    const char* text = "[Section]\n{\n768 = N  0 0\n}";
-
-    BOOST_CHECK_THROW([&] { return SightRead::Detail::parse_chart(text); }(),
-                      SightRead::ParseError);
-}
-
 BOOST_AUTO_TEST_CASE(bpm_events_are_read)
 {
     const char* text = "[Section]\n{\n1000 = B 150000\n}";
