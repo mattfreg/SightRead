@@ -45,7 +45,7 @@ namespace grammar {
         static constexpr auto whitespace = dsl::ascii::blank;
 
         static constexpr auto rule = dsl::integer<int> + dsl::lit_c<'='>
-            + dsl::lit<"TS"> + dsl::integer<int>
+            + LEXY_LIT("TS") + dsl::integer<int>
             + dsl::try_(dsl::integer<int>, dsl::nullopt) + dsl::eof;
         static constexpr auto value
             = lexy::bind(lexy::construct<SightRead::Detail::TimeSigEvent>,
