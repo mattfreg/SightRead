@@ -177,6 +177,19 @@ BOOST_AUTO_TEST_CASE(e_events_are_read)
                                   events.cend());
 }
 
+BOOST_AUTO_TEST_CASE(e_events_with_underscores_are_read)
+{
+    const char* text = "[Section]\n{\n1000 = E mix_3_drums0d\n}";
+    const std::vector<SightRead::Detail::Event> events {
+        {1000, "mix_3_drums0d"}};
+
+    const auto section = SightRead::Detail::parse_chart(text).sections[0];
+
+    BOOST_CHECK_EQUAL_COLLECTIONS(section.events.cbegin(),
+                                  section.events.cend(), events.cbegin(),
+                                  events.cend());
+}
+
 BOOST_AUTO_TEST_CASE(other_events_are_ignored)
 {
     const char* text = "[Section]\n{\n1105 = A 133\n}";

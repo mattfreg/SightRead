@@ -2,6 +2,7 @@
 #include <optional>
 
 #include <lexy/action/parse.hpp>
+#include <lexy/callback.hpp>
 #include <lexy/dsl.hpp>
 #include <lexy/input/string_input.hpp>
 #include <lexy_ext/report_error.hpp>
@@ -20,6 +21,49 @@ namespace grammar {
             + dsl::lit_c<'N'> + dsl::times<2>(dsl::integer<int>) + dsl::eof;
         static constexpr auto value
             = lexy::construct<SightRead::Detail::NoteEvent>;
+    };
+
+    struct special_event {
+        static constexpr auto whitespace = dsl::ascii::blank;
+
+        static constexpr auto rule = dsl::integer<int> + dsl::lit_c<'='>
+            + dsl::lit_c<'S'> + dsl::times<2>(dsl::integer<int>) + dsl::eof;
+        static constexpr auto value
+            = lexy::construct<SightRead::Detail::SpecialEvent>;
+    };
+
+    struct bpm_event {
+        static constexpr auto whitespace = dsl::ascii::blank;
+
+        static constexpr auto rule = dsl::integer<int> + dsl::lit_c<'='>
+            + dsl::lit_c<'B'> + dsl::integer<int> + dsl::eof;
+        static constexpr auto value
+            = lexy::construct<SightRead::Detail::BpmEvent>;
+    };
+
+    struct ts_event {
+        static constexpr auto whitespace = dsl::ascii::blank;
+
+        static constexpr auto rule = dsl::integer<int> + dsl::lit_c<'='>
+            + dsl::lit<"TS"> + dsl::integer<int>
+            + dsl::try_(dsl::integer<int>, dsl::nullopt) + dsl::eof;
+        static constexpr auto value
+            = lexy::bind(lexy::construct<SightRead::Detail::TimeSigEvent>,
+                         lexy::_1, lexy::_2, lexy::_3 or 2);
+    };
+
+    struct rest_of_event {
+        static constexpr auto rule
+            = dsl::identifier(dsl::ascii::alnum / dsl::lit_c<'_'>);
+        static constexpr auto value = lexy::as_string<std::string>;
+    };
+
+    struct event {
+        static constexpr auto whitespace = dsl::ascii::blank;
+
+        static constexpr auto rule = dsl::integer<int> + dsl::lit_c<'='>
+            + dsl::lit_c<'E'> + dsl::p<rest_of_event> + dsl::eof;
+        static constexpr auto value = lexy::construct<SightRead::Detail::Event>;
     };
 }
 
@@ -106,65 +150,64 @@ SightRead::Detail::NoteEvent convert_line_to_note(std::string_view line)
     return result.value();
 }
 
-SightRead::Detail::SpecialEvent
-convert_line_to_special(int position,
-                        const std::vector<std::string_view>& split_line)
+SightRead::Detail::SpecialEvent convert_line_to_special(std::string_view line)
 {
-    constexpr int MAX_NORMAL_EVENT_SIZE = 5;
+    std::string error;
 
-    if (split_line.size() < MAX_NORMAL_EVENT_SIZE) {
-        throw SightRead::ParseError("Line incomplete");
+    const auto literal = lexy::string_input(line);
+    const auto result = lexy::parse<grammar::special_event>(
+        literal, lexy_ext::report_error.to(std::back_inserter(error)));
+
+    if (!result.has_value()) {
+        throw SightRead::ParseError(error);
     }
-    const auto sp_key = string_view_to_int(split_line[3]);
-    const auto length = string_view_to_int(split_line[4]);
-    if (!sp_key.has_value() || !length.has_value()) {
-        throw SightRead::ParseError("Bad SP event");
-    }
-    return {position, *sp_key, *length};
+
+    return result.value();
 }
 
-SightRead::Detail::BpmEvent
-convert_line_to_bpm(int position,
-                    const std::vector<std::string_view>& split_line)
+SightRead::Detail::BpmEvent convert_line_to_bpm(std::string_view line)
 {
-    if (split_line.size() < 4) {
-        throw SightRead::ParseError("Line incomplete");
+    std::string error;
+
+    const auto literal = lexy::string_input(line);
+    const auto result = lexy::parse<grammar::bpm_event>(
+        literal, lexy_ext::report_error.to(std::back_inserter(error)));
+
+    if (!result.has_value()) {
+        throw SightRead::ParseError(error);
     }
-    const auto bpm = string_view_to_int(split_line[3]);
-    if (!bpm.has_value()) {
-        throw SightRead::ParseError("Bad BPM event");
-    }
-    return {position, *bpm};
+
+    return result.value();
 }
 
-SightRead::Detail::TimeSigEvent
-convert_line_to_timesig(int position,
-                        const std::vector<std::string_view>& split_line)
+SightRead::Detail::TimeSigEvent convert_line_to_timesig(std::string_view line)
 {
-    constexpr int MAX_NORMAL_EVENT_SIZE = 5;
+    std::string error;
 
-    if (split_line.size() < 4) {
-        throw SightRead::ParseError("Line incomplete");
+    const auto literal = lexy::string_input(line);
+    const auto result = lexy::parse<grammar::ts_event>(
+        literal, lexy_ext::report_error.to(std::back_inserter(error)));
+
+    if (!result.has_value()) {
+        throw SightRead::ParseError(error);
     }
-    const auto numer = string_view_to_int(split_line[3]);
-    std::optional<int> denom = 2;
-    if (split_line.size() >= MAX_NORMAL_EVENT_SIZE) {
-        denom = string_view_to_int(split_line[4]);
-    }
-    if (!numer.has_value() || !denom.has_value()) {
-        throw SightRead::ParseError("Bad TS event");
-    }
-    return {position, *numer, *denom};
+
+    return result.value();
 }
 
-SightRead::Detail::Event
-convert_line_to_event(int position,
-                      const std::vector<std::string_view>& split_line)
+SightRead::Detail::Event convert_line_to_event(std::string_view line)
 {
-    if (split_line.size() < 4) {
-        throw SightRead::ParseError("Line incomplete");
+    std::string error;
+
+    const auto literal = lexy::string_input(line);
+    const auto result = lexy::parse<grammar::event>(
+        literal, lexy_ext::report_error.to(std::back_inserter(error)));
+
+    if (!result.has_value()) {
+        throw SightRead::ParseError(error);
     }
-    return {position, std::string {split_line[3]}};
+
+    return result.value();
 }
 
 SightRead::Detail::ChartSection read_section(std::string_view& input)
@@ -188,21 +231,17 @@ SightRead::Detail::ChartSection read_section(std::string_view& input)
         const auto key = separated_line[0];
         const auto key_val = string_view_to_int(key);
         if (key_val.has_value()) {
-            const auto pos = *key_val;
             if (separated_line[2] == "N") {
                 section.note_events.push_back(convert_line_to_note(next_line));
             } else if (separated_line[2] == "S") {
                 section.special_events.push_back(
-                    convert_line_to_special(pos, separated_line));
+                    convert_line_to_special(next_line));
             } else if (separated_line[2] == "B") {
-                section.bpm_events.push_back(
-                    convert_line_to_bpm(pos, separated_line));
+                section.bpm_events.push_back(convert_line_to_bpm(next_line));
             } else if (separated_line[2] == "TS") {
-                section.ts_events.push_back(
-                    convert_line_to_timesig(pos, separated_line));
+                section.ts_events.push_back(convert_line_to_timesig(next_line));
             } else if (separated_line[2] == "E") {
-                section.events.push_back(
-                    convert_line_to_event(pos, separated_line));
+                section.events.push_back(convert_line_to_event(next_line));
             }
         } else {
             std::string value {separated_line[2]};
